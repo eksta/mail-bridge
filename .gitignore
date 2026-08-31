@@ -1,10 +1,16 @@
+*.log
+.idea
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
+.body_cache
+config.json
 
 # C extensions
 *.so
+
 
 # Distribution / packaging
 .Python

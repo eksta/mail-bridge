@@ -1,0 +1,14 @@
+{
+  "accounts": [
+    {
+      "type": "yandex",
+      "email": "you@yandex.ru",
+      "token": "${YANDEX_OAUTH_TOKEN}",
+      "local_user": "yandex",
+      "local_password": "bridge",
+      "imap_port": 1143,
+      "smtp_port": 1025,
+      "bind": "127.0.0.1"
+    }
+  ]
+}
