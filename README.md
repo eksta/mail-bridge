@@ -9,9 +9,6 @@
 
 - `Yandex Mail 9.27.0` (`ru.yandex.mail`) — протокол **mobapi**
 
-Поддержка Mail.ru вынесена из релиза в отдельную папку `mailru/`
-(см. `mailru/README.md`).
-
 ---
 
 ## 1. Что было найдено в APK
