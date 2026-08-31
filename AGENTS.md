@@ -20,7 +20,7 @@ bridge/
   yandex_api.py   — Yandex mobapi client (OAuth bearer)
   http.py         — stdlib HTTPS client
   rfc822.py       — JSON <-> MIME converters (key file)
-  backends.py     — MailboxBackend base + YandexBackend/MailRuBackend
+  backends.py     — MailboxBackend base + YandexBackend
   imap_server.py  — IMAP4rev1 server (asyncio Protocol)
   smtp_server.py  — SMTP server (asyncio Protocol)
   main.py         — config loading, server startup, check command
