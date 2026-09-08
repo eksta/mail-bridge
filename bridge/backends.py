@@ -62,6 +62,38 @@ class MailboxBackend:
         raise NotImplementedError
 
     # --- shared -------------------------------------------------------
+    # SMTP client header -> original-header dict key (FCC support)
+    ORIGINAL_HEADER_KEYS = (
+        ("Message-ID", "message_id"), ("To", "to_header"),
+        ("Cc", "cc_header"), ("Date", "date_header"),
+        ("In-Reply-To", "in_reply_to"), ("References", "references"),
+    )
+
+    def original_headers(self, mid):
+        """Original client headers for an auto-filed Sent copy (or None).
+
+        Backends that remember SMTP send headers keep them in
+        self._sent_originals[mid].
+        """
+        return getattr(self, "_sent_originals", {}).get(str(mid))
+
+    def apply_original_headers(self, mid, msg):
+        """Rewrite bridge-generated headers with the client's originals.
+
+        Returns True when originals were applied.
+        """
+        orig = self.original_headers(mid)
+        if not orig:
+            return False
+        for hdr, key in self.ORIGINAL_HEADER_KEYS:
+            val = orig.get(key)
+            if not val:
+                continue
+            if msg.get(hdr) is not None:
+                del msg[hdr]  # EmailMessage: set after delete, else duplicate
+            msg[hdr] = val
+        return True
+
     def folders(self, refresh=False):
         now = time.time()
         if refresh or not self._folder_cache or now - self._folder_ts > 120:
@@ -295,22 +327,6 @@ class YandexBackend(MailboxBackend):
         if len(self._seen_mids) > 5000:  # bound memory
             self._seen_mids = set(list(self._seen_mids)[-2000:])
 
-    def _restore_original_headers(self, mid, msg):
-        """Rewrite bridge-generated headers with the client's originals."""
-        orig = self._sent_originals.get(str(mid))
-        if not orig:
-            return
-        for hdr, key in (("Message-ID", "message_id"), ("To", "to_header"),
-                         ("Cc", "cc_header"), ("Date", "date_header"),
-                         ("In-Reply-To", "in_reply_to"),
-                         ("References", "references")):
-            val = orig.get(key)
-            if not val:
-                continue
-            if msg.get(hdr) is not None:
-                del msg[hdr]  # EmailMessage: set after delete, else duplicate
-            msg[hdr] = val
-
     def api_fetch_message(self, folder_id, mid):
         cached = self._body_cache.get(str(mid))
         if cached is not None:
@@ -329,7 +345,7 @@ class YandexBackend(MailboxBackend):
             meta, body_json, self.api.email or "")
         # Restore the client's original headers (Message-ID etc.) so
         # Thunderbird's Sent-folder dupe check recognizes the copy.
-        self._restore_original_headers(mid, msg)
+        self.apply_original_headers(mid, msg)
         # Replace placeholder b"" attachment content with real bytes
         # so BODY[] (full message fetch) contains actual attachment data.
         import base64
