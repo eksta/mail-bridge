@@ -632,7 +632,11 @@ class ImapSession(asyncio.Protocol):
                 # check never recognized the Sent copy.
                 parts2 = tail.split(" ", 1)
                 field = parts2[0].strip()
-                val = _unq(parts2[1]) if len(parts2) > 1 else ""
+                # cut the value off from any following criteria
+                # (e.g. HEADER Message-ID "x" SEEN) — they must not
+                # pollute the substring match
+                val = _unq(_split_criteria(parts2[1])[0]) \
+                    if len(parts2) > 1 else ""
                 try:
                     hv = str(self._load_headers(item).get(field, "") or "")
                 except Exception:  # noqa: BLE001
