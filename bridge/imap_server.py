@@ -47,10 +47,38 @@ def notify_folder(backend, folder: str):
                 s._send(f"* {len(view.msgs)} EXISTS")
             except Exception:  # noqa: BLE001
                 pass
+        # Closed-folder nudge: EXISTS is only legal on sessions with the
+        # folder selected.  TB's queued FCC check ("did my auto-filed copy
+        # appear in Sent?") stays dormant until the folder is touched, so
+        # if no session has Sent open the event must reach the client on
+        # its other (IDLE) connections — unsolicited STATUS is how
+        # closed-folder counts are refreshed and TB accepts it mid-IDLE.
+        status = (f"* STATUS {_q(folder)} (MESSAGES {len(view.msgs)} "
+                  f"UIDNEXT {view.uidnext} UNSEEN {view.unseen} "
+                  f"UIDVALIDITY 1 RECENT 0)")
+        for s in list(_ACTIVE_SESSIONS):
+            try:
+                if s.state != "AUTH" or s.view is view:
+                    continue
+                s._send(status)
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def _q(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _hidden_folder(name):
+    """Yandex-internal pseudo-folders that must not appear in LIST/LSUB.
+
+    - names with '|' (e.g. 'Drafts|template' — Yandex templates store):
+      not a real message folder; contents are not servable via IMAP;
+    - 'Outbox' — Yandex outgoing queue for timed sends; TB's Outbox is a
+      local-folders concept and this IMAP twin only confuses clients.
+    """
+    n = (name or "").strip()
+    return "|" in n or n.upper() == "OUTBOX"
 
 
 def _uid_for(mid):
@@ -278,7 +306,7 @@ class ImapSession(asyncio.Protocol):
         self._send('* LIST (\\HasNoChildren) "/" "INBOX"')
         for f in self.backend.folders():
             name = f["name"]
-            if name.upper() == "INBOX":
+            if name.upper() == "INBOX" or _hidden_folder(name):
                 continue
             self._send(f'* LIST (\\HasNoChildren) "/" {_q(name)}')
         self._send(f"{self._tag} OK LIST completed")
@@ -289,7 +317,7 @@ class ImapSession(asyncio.Protocol):
         self._send('* LSUB () "/" "INBOX"')
         for f in self.backend.folders():
             name = f["name"]
-            if name.upper() == "INBOX":
+            if name.upper() == "INBOX" or _hidden_folder(name):
                 continue
             self._send(f'* LSUB () "/" {_q(name)}')
         self._send(f"{self._tag} OK LSUB completed")
@@ -595,6 +623,25 @@ class ImapSession(asyncio.Protocol):
                 c1, rem = _split_criteria(tail)
                 c2, _ = _split_criteria(rem)
                 return _match(item, c1) or _match(item, c2)
+            if kw == "HEADER":
+                # HEADER <field-name> <value>: match against the real
+                # (originals-overlaid) header.  Thunderbird's FCC check
+                # does UID SEARCH HEADER Message-ID "<...>" after each
+                # send; with the old "unknown -> match everything"
+                # fallback it returned the whole folder and the dupe
+                # check never recognized the Sent copy.
+                parts2 = tail.split(" ", 1)
+                field = parts2[0].strip()
+                # cut the value off from any following criteria
+                # (e.g. HEADER Message-ID "x" SEEN) — they must not
+                # pollute the substring match
+                val = _unq(_split_criteria(parts2[1])[0]) \
+                    if len(parts2) > 1 else ""
+                try:
+                    hv = str(self._load_headers(item).get(field, "") or "")
+                except Exception:  # noqa: BLE001
+                    return False
+                return val.strip().lower() in hv.lower()
             # unknown criterion: match everything
             return True
 
@@ -803,6 +850,16 @@ class ImapSession(asyncio.Protocol):
             else email.utils.formatdate()
         em["Message-ID"] = f"<{t['mid']}@bridge>"
         em.set_content(env.get("snippet") or " ")
+        # Auto-filed Sent copies: overlay the SMTP client's original
+        # headers (Message-ID etc.) so header-only fetches (RFC822.HEADER,
+        # BODY[HEADER.FIELDS]) and ENVELOPE report the same values as the
+        # full BODY[] — Thunderbird's FCC dupe-check matches on them.
+        apply_orig = getattr(self.backend, "apply_original_headers", None)
+        if apply_orig is not None:
+            try:
+                apply_orig(str(t["mid"]), em)
+            except Exception:  # noqa: BLE001
+                pass
         t["hdr_msg"] = em
         return em
 
