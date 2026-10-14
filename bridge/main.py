@@ -35,12 +35,18 @@ def _expand_env(value, where):
     return value
 
 
-def load_config(path="config.json"):
-    p = Path(path)
-    if not p.exists():
-        sys.exit(f"config {p} not found (copy config.example.json)")
-    cfg = _expand_env(json.loads(p.read_text(encoding="utf-8")), p)
-    return cfg
+def load_config(path=None):
+    candidates = [Path(path)] if path else []
+    if not candidates:
+        candidates.append(Path.cwd() / "config.json")
+        from .paths import app_dir
+        exe_dir_cfg = app_dir() / "config.json"
+        if exe_dir_cfg != candidates[0]:
+            candidates.append(exe_dir_cfg)
+    for p in candidates:
+        if p.exists():
+            return _expand_env(json.loads(p.read_text(encoding="utf-8")), p)
+    sys.exit(f"config {candidates[0]} not found (copy config.example.json)")
 
 
 def build_backends(cfg):

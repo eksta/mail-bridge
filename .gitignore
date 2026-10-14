@@ -1,6 +1,9 @@
 *.log
 .idea
 
+# Playwright MCP (browser session snapshots/logs, may contain personal data)
+.playwright-mcp/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

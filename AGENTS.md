@@ -9,6 +9,7 @@ Pure stdlib Python (no external deps besides `cryptography`). Runs on Windows.
 python -m bridge                    # start IMAP+SMTP servers
 python -m bridge check              # verify tokens, print folders/messages
 python -m unittest tests.test_bridge -v   # run tests (no pytest)
+.\build\build_exe.ps1               # build build\dist\mail-bridge.exe (PyInstaller; в git не входит)
 ```
 
 Tests use unittest only. There is no lint/typecheck config.
