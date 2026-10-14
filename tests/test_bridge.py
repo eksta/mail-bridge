@@ -323,6 +323,13 @@ class TestImapFccHeaders(unittest.TestCase):
         ])
         self.assertIn(b"* SEARCH\r\n", blob)
 
+    def test_search_header_trailing_criterion_not_swallowed(self):
+        """A criterion after the value must not pollute the search value."""
+        blob = self._run([
+            f'a3 SEARCH HEADER Message-ID "{self.ORIG_MID}" SEEN\r\n'.encode(),
+        ])
+        self.assertIn(b"* SEARCH 2", blob)
+
     def test_header_fields_fetch_shows_original(self):
         """BODY[HEADER.FIELDS (MESSAGE-ID)] reports the original value."""
         blob = self._run([
