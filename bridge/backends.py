@@ -159,9 +159,9 @@ class YandexBackend(MailboxBackend):
         self._sent_originals = {}          # mid -> original header dict
         self._seen_mids = set()            # mids already seen in listing
         self._full_loaded = set()          # fids whose full listing was walked
+        from .paths import app_dir
         self._cache_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            ".body_cache", api.email or "unknown")
+            str(app_dir()), ".body_cache", api.email or "unknown")
         self._load_body_cache()
 
     def api_folders(self):
